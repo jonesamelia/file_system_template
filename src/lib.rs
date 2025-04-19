@@ -857,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_dictionary_many_entries() {
+    fn test_create_directory_many_entries() {
         let mut sys = make_preloaded_fs();
         let mut directory_inode = sys.directory_inode();
         let names = ["tester", "teaser", "bookends", "sleepy", "wired", "working"];
