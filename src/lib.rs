@@ -837,6 +837,76 @@ mod tests {
     }
 
     #[test]
+    fn test_create_dictionary_entry() {
+        let mut sys = make_preloaded_fs();
+        let mut directory_inode = sys.directory_inode();
+        let inode_num = 3;
+        sys.create_directory_entry("tester", inode_num, &mut directory_inode)
+            .unwrap();
+        sys.disk.read(2, &mut sys.block_buffer).unwrap();
+        assert_eq!(sys.block_buffer[0], 32);
+        sys.disk.read(7, &mut sys.block_buffer).unwrap();
+        assert_eq!(
+            sys.block_buffer,
+            [
+                0, 0, 0, 0, 0, 0, 0, 0, 111, 110, 101, 46, 116, 120, 116, 0, 116, 119, 111, 46,
+                116, 120, 116, 0, 116, 101, 115, 116, 101, 114, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+    }
+
+    #[test]
+    fn test_create_dictionary_many_entries() {
+        let mut sys = make_preloaded_fs();
+        let mut directory_inode = sys.directory_inode();
+        let names = ["tester", "teaser", "bookends", "sleepy", "wired", "working"];
+        for (i, name) in names.iter().enumerate() {
+            let inode_num = i + 3;
+            sys.create_directory_entry(name, inode_num, &mut directory_inode)
+                .unwrap();
+        }
+        sys.disk.read(1, &mut sys.block_buffer).unwrap();
+        assert_eq!(
+            sys.block_buffer,
+            [
+                255, 127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+        sys.disk.read(2, &mut sys.block_buffer).unwrap();
+        assert_eq!(
+            sys.block_buffer,
+            [
+                72, 0, 7, 14, 7, 7, 7, 7, 7, 7, 147, 0, 8, 9, 12, 8, 8, 8, 8, 8, 156, 0, 10, 11,
+                13, 10, 10, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+        sys.disk.read(7, &mut sys.block_buffer).unwrap();
+        assert_eq!(
+            sys.block_buffer,
+            [
+                0, 0, 0, 0, 0, 0, 0, 0, 111, 110, 101, 46, 116, 120, 116, 0, 116, 119, 111, 46,
+                116, 120, 116, 0, 116, 101, 115, 116, 101, 114, 0, 0, 116, 101, 97, 115, 101, 114,
+                0, 0, 98, 111, 111, 107, 101, 110, 100, 115, 115, 108, 101, 101, 112, 121, 0, 0,
+                119, 105, 114, 101, 100, 0, 0, 0
+            ]
+        );
+        sys.disk.read(14, &mut sys.block_buffer).unwrap();
+        assert_eq!(
+            sys.block_buffer,
+            [
+                119, 111, 114, 107, 105, 110, 103, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+    }
+
+    // *** ORIGINAL TESTS *** //
+    #[test]
     fn test_empty() {
         let mut sys = make_clear_fs();
         assert!(!sys.directory_exists());
