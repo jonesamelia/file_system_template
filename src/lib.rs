@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_dictionary_entry() {
+    fn test_create_directory_entry() {
         let mut sys = make_preloaded_fs();
         let mut directory_inode = sys.directory_inode();
         let inode_num = 3;
