@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 use thiserror_no_std::Error;
 
-use core::cmp::min;
+use core::{cmp::{max, min}, result::Result};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Error)]
 pub enum FileSystemError {
@@ -204,7 +204,7 @@ impl<
         // Write the block back to the disk.
     }
 
-    fn request_data_block(&mut self) -> anyhow::Result<u8, FileSystemError> {
+    fn request_data_block(&mut self) -> Result<u8, FileSystemError> {
         //todo!("Find a data block number to meet a block request.");
         //self.disk.read(DATA_FULL_BLOCK, &mut self.block_buffer).unwrap();
 
@@ -323,7 +323,7 @@ impl<
         //   Call initialize_new_file() to create the directory.
     }
 
-    fn load_directory(&mut self) -> anyhow::Result<(), FileSystemError> {
+    fn load_directory(&mut self) -> Result<(), FileSystemError> {
         //todo!("Load the directory into the file content buffer.");
 
         match self.directory_exists(){
@@ -362,7 +362,7 @@ impl<
 
     pub fn list_directory(
         &mut self,
-    ) -> anyhow::Result<(usize, [[u8; MAX_FILENAME_BYTES]; MAX_FILES_STORED]), FileSystemError>
+    ) -> Result<(usize, [[u8; MAX_FILENAME_BYTES]; MAX_FILES_STORED]), FileSystemError>
     {
         //todo!("Create a directory listing.");
 
@@ -404,7 +404,7 @@ impl<
     pub fn inode_for(
         &mut self,
         filename: &str,
-    ) -> anyhow::Result<(usize, Inode<MAX_FILE_BLOCKS, BLOCK_SIZE>), FileSystemError> {
+    ) -> Result<(usize, Inode<MAX_FILE_BLOCKS, BLOCK_SIZE>), FileSystemError> {
         //todo!("Search the directory for the inode number that matches the filename");
         let _ = self.load_directory();
             
@@ -445,7 +445,7 @@ impl<
         // If we don't find a match, return a FileNotFound error.
     }
 
-    pub fn open_read(&mut self, filename: &str) -> anyhow::Result<usize, FileSystemError> {
+    pub fn open_read(&mut self, filename: &str) -> Result<usize, FileSystemError> {
         //todo!("Open the file to read");
         let f_inode = self.inode_for(filename)?;
         if self.open_inodes[f_inode.0] == true{
@@ -474,7 +474,7 @@ impl<
         // Return the file descriptor.
     }
 
-    pub fn open_create(&mut self, filename: &str) -> anyhow::Result<usize, FileSystemError> {
+    pub fn open_create(&mut self, filename: &str) -> Result<usize, FileSystemError> {
         if filename.len() > MAX_FILENAME_BYTES {
             return Err(FileSystemError::FilenameTooLong(MAX_FILENAME_BYTES));
         }
@@ -487,7 +487,7 @@ impl<
         }
     }
 
-    pub fn open_create_new(&mut self, filename: &str) -> anyhow::Result<usize, FileSystemError> {
+    pub fn open_create_new(&mut self, filename: &str) -> Result<usize, FileSystemError> {
         let mut d_inode = self.directory_inode();
         let inode_num: usize;
         match self.find_lowest_zero_bit_in(INODE_FULL_BLOCK){
@@ -531,7 +531,7 @@ impl<
         filename: &str,
         inode_num: usize,
         directory_inode: &mut Inode<MAX_FILE_BLOCKS, BLOCK_SIZE>,
-    ) -> anyhow::Result<(), FileSystemError> {
+    ) -> Result<(), FileSystemError> {
         //todo!("Create a new entry in the directory file");
         let _ = self.load_directory();
         let arr_entry = MAX_FILENAME_BYTES + (inode_num - 1) * MAX_FILENAME_BYTES;
@@ -573,7 +573,7 @@ impl<
         // Call `save_inode()` to save the updated directory inode.
     }
 
-    pub fn close(&mut self, fd: usize) -> anyhow::Result<(), FileSystemError> {
+    pub fn close(&mut self, fd: usize) -> Result<(), FileSystemError> {
         //todo!("Close the file.");
         match self.open[fd]{
             None => return Err(FileSystemError::FileNotOpen),
@@ -591,7 +591,7 @@ impl<
         // Set its `open` entry to `None` and its `open_inodes` entry to `false`.
     }
 
-    pub fn read(&mut self, fd: usize, buffer: &mut [u8]) -> anyhow::Result<usize, FileSystemError> {
+    pub fn read(&mut self, fd: usize, buffer: &mut [u8]) -> Result<usize, FileSystemError> {
         //todo!("Read from `fd` until `buffer` is full or there is no data left.");
         let mut file_info = match self.open[fd]{
             None => return Err(FileSystemError::FileNotOpen),
@@ -637,7 +637,7 @@ impl<
         // Return the total number of bytes read when finished.
     }
 
-    pub fn write(&mut self, fd: usize, buffer: &[u8]) -> anyhow::Result<(), FileSystemError> {
+    pub fn write(&mut self, fd: usize, buffer: &[u8]) -> Result<(), FileSystemError> {
         //todo!("Write to `fd` until `buffer` is empty.");
         let mut info: FileInfo<MAX_FILE_BLOCKS, BLOCK_SIZE>;
         info = match self.open[fd]{
@@ -719,7 +719,7 @@ impl<
         // Return its file descriptor.
     }
 
-    pub fn open_append(&mut self, filename: &str) -> anyhow::Result<usize, FileSystemError> {
+    pub fn open_append(&mut self, filename: &str) -> Result<usize, FileSystemError> {
         todo!("Open a file to append");
         // Call `inode_for()` to get the file's inode.
         // Pick a file descriptor to use for the file.
@@ -882,6 +882,8 @@ mod tests {
             assert_eq!(lowest_zero_in(&buffer), bit);
         }
     }
+
+    // Level 1 Unit Tests
 
     #[test]
     fn test_no_directory_exists() {
@@ -1164,7 +1166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_dictionary_entry() {
+    fn test_create_directory_entry() {
         let mut sys = make_preloaded_fs();
         let mut directory_inode = sys.directory_inode();
         let inode_num = 3;
@@ -1184,7 +1186,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_dictionary_many_entries() {
+    fn test_create_directory_many_entries() {
         let mut sys = make_preloaded_fs();
         let mut directory_inode = sys.directory_inode();
         let names = ["tester", "teaser", "bookends", "sleepy", "wired", "working"];
