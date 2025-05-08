@@ -215,7 +215,12 @@ impl<
             return Ok(block as u8);
         }
         Err(FileSystemError::DiskFull)
-        
+        // Find the lowest unused data block.
+        // * If there are no unused data blocks, return a DiskFull error.
+        // * If the lowest unused data block meets or exceeds NUM_BLOCKS,
+        //   return a DiskFull error.
+        // Activate that bit in the data-in-use block (i.e., DATA_FULL_BLOCK)
+        // Return that block number.
     }
 
     fn clear_block_buffer(&mut self) {
