@@ -1,7 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 use thiserror_no_std::Error;
 
-use core::{cmp::{max, min}, result::Result};
+use core::cmp::min; 
+use core::result::Result;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Error)]
 pub enum FileSystemError {
@@ -33,7 +34,7 @@ impl core::error::Error for FileSystemError {}
 
 const INODE_FULL_BLOCK: usize = 0;
 const DATA_FULL_BLOCK: usize = INODE_FULL_BLOCK + 1;
-const INODE_TABLE_START: usize = DATA_FULL_BLOCK + 1;
+//const INODE_TABLE_START: usize = DATA_FULL_BLOCK + 1;
 
 #[derive(core::fmt::Debug)]
 pub struct FileSystem<
@@ -367,7 +368,7 @@ impl<
                 return Err(FileSystemError::DirectoryEmpty);
             }
             let filenum: usize = low_zero_bit - 1;
-            self.load_directory();
+            self.load_directory()?;
             let mut dir_arr = [[0; MAX_FILENAME_BYTES]; MAX_FILES_STORED];
 
             for i in 0..filenum{
@@ -641,9 +642,7 @@ impl<
         if info.writing == false{
             return Err(FileSystemError::NotOpenForWrite);
         }
-        if info.inode.bytes_stored as usize + buffer.len() >= MAX_FILE_BYTES {
-            return Err(FileSystemError::FileTooBig(MAX_FILE_BYTES));
-        }
+        
         for &byte in buffer {
             if info.offset >= BLOCK_SIZE {
                 self.disk.write(info.inode.blocks[info.current_block] as usize, &info.block_buffer).unwrap();
@@ -695,9 +694,8 @@ impl<
             let bits: usize = b % 8;
             self.block_buffer[index] &= !(1 << bits);
         }
-        self.disk.write(DATA_FULL_BLOCK, &self.block_buffer).unwrap();
+        
         let new = self.request_data_block()?;
-        self.clear_block_buffer();
         self.disk.write(new as usize, &self.block_buffer).unwrap();
         inode.bytes_stored = 0;
         inode.blocks[0] = new;
@@ -723,19 +721,19 @@ impl<
 
     pub fn open_append(&mut self, filename: &str) -> Result<usize, FileSystemError> {
         //todo!("Open a file to append");
-        let (inode_num, inode) = self.inode_for(filename)?;
-        if self.open_inodes[inode_num] {
+        let inode_num: (usize, Inode<MAX_FILE_BLOCKS, BLOCK_SIZE>) = self.inode_for(filename)?;
+        if self.open_inodes[inode_num.0] {
             return Err(FileSystemError::AlreadyOpen);
         }
     
         if let Some(low_fd) = self.find_lowest_fd(){
-            let end_offset = inode.bytes_stored as usize;
+            let end_offset = inode_num.1.bytes_stored as usize;
             let offset_in_block = end_offset % BLOCK_SIZE;  
             let current_block = end_offset / BLOCK_SIZE;
-            let mut info = FileInfo::write_inside(inode, inode_num, current_block, offset_in_block);
-            self.disk.read(inode.blocks[current_block] as usize, &mut info.block_buffer).unwrap();
+            let mut info = FileInfo::write_inside(inode_num.1, inode_num.0, current_block, offset_in_block);
+            self.disk.read(inode_num.1.blocks[current_block] as usize, &mut info.block_buffer).unwrap();
             self.open[low_fd] = Some(info);
-            self.open_inodes[inode_num] = true;
+            self.open_inodes[inode_num.0] = true;
             return Ok(low_fd);
         }
         
@@ -1490,8 +1488,10 @@ mod tests {
     fn test_file_too_big() {
         let mut sys = make_clear_fs();
         let f1 = sys.open_create("one.txt").unwrap();
-        for _ in 0..sys.max_file_size() - 1 {
+        for _ in 0..sys.max_file_size() {
             sys.write(f1, "A".as_bytes()).unwrap();
+            let b = sys.find_lowest_zero_bit_in(DATA_FULL_BLOCK);
+
         }
         match sys.write(f1, "B".as_bytes()) {
             Ok(_) => panic!("Should be an error!"),
@@ -1521,12 +1521,12 @@ mod tests {
         for i in 0..MAX_FILES_STORED - 1 {
             let filename = format!("file{i}");
             let f = sys.open_create(filename.as_str()).unwrap();
-            for j in 0..sys.max_file_size() - 1 {
+            for j in 0..sys.max_file_size() {
                 match sys.write(f, "A".as_bytes()) {
                     Ok(_) => {}
                     Err(e) => {
                         assert_eq!(i, 30);
-                        assert_eq!(j, 191);
+                        assert_eq!(j, 192);
                         assert_eq!(e, FileSystemError::DiskFull);
                         return;
                     }
@@ -1536,7 +1536,6 @@ mod tests {
         }
         panic!("The disk should have been full!");
     }
-
     const COMPLEX_1_RAM_DISK: RamDisk<BLOCK_SIZE, NUM_BLOCKS> = RamDisk::blocks([
         [
             7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
